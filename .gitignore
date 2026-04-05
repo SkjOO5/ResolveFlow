@@ -1,0 +1,8 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.pytest_cache/
+run_out.log
+pip_out.txt
+.DS_Store

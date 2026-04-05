@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResolveFlow // OpenSupportEnv</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <header class="app-header">
+        <div class="logo">ResolveFlow / <span>OpenSupportEnv</span></div>
+        <div class="status-indicator"><span class="dot green"></span> System Online</div>
+    </header>
+
+    <div class="layout-container">
+        <!-- Settings Column -->
+        <aside class="sidebar">
+            <section class="control-panel">
+                <h3>Task Selection</h3>
+                <select id="task-selector" class="stylish-select">
+                    <option value="">(Random/Default Easy)</option>
+                    {% for task_id, t in tasks.items() %}
+                    <option value="{{ task_id }}">{{ t.difficulty | capitalize }} - {{ t.title }}</option>
+                    {% endfor %}
+                </select>
+                <button id="btn-reset" class="btn primary full-width mt-2">Reset Environment</button>
+            </section>
+            
+            <section class="status-panel mt-4">
+                <h3>Current State</h3>
+                <div class="stat-row">
+                    <span>Task:</span><strong id="ui-current-task">-</strong>
+                </div>
+                <div class="stat-row">
+                    <span>Step:</span><strong id="ui-step-count">0 / 0</strong>
+                </div>
+                <div class="stat-row">
+                    <span>Reward:</span><strong id="ui-reward">0.00</strong>
+                </div>
+                <div class="stat-row">
+                    <span>Status:</span><strong id="ui-status">Not Started</strong>
+                </div>
+            </section>
+        </aside>
+
+        <!-- Main Dashboard -->
+        <main class="main-content">
+            
+            <!-- Observation Area -->
+            <div class="panel ticket-panel">
+                <div class="panel-header">
+                    <h2>Current Ticket</h2>
+                </div>
+                <div class="panel-body">
+                    <div class="message-box">
+                        <label>Customer Message</label>
+                        <p id="ui-customer-msg" class="message-text">Select a task and reset to begin.</p>
+                    </div>
+                    <div class="metadata-grid" id="ui-metadata-grid">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Internal Context / Tools Output -->
+            <div class="panel context-panel mt-4">
+                <div class="panel-header">
+                    <h2>Revealed Internal Context</h2>
+                </div>
+                <div class="panel-body">
+                    <pre id="ui-revealed-context" class="json-view">No internal data retrieved yet.</pre>
+                </div>
+            </div>
+
+            <!-- Action Composer -->
+            <div class="panel action-panel mt-4 disabled" id="action-panel">
+                <div class="panel-header">
+                    <h2>Action Composer</h2>
+                </div>
+                <div class="panel-body action-form">
+                    <div class="form-group">
+                        <label>Action Type</label>
+                        <select id="action-type" class="stylish-select">
+                            <option value="classify_ticket">Classify Ticket</option>
+                            <option value="set_priority">Set Priority</option>
+                            <option value="request_account_details">Request: Account Details</option>
+                            <option value="request_order_history">Request: Order History</option>
+                            <option value="request_shipping_status">Request: Shipping Status</option>
+                            <option value="request_return_policy">Request: Return Policy</option>
+                            <option value="draft_response">Draft Response</option>
+                            <option value="issue_refund">Issue Refund</option>
+                            <option value="offer_replacement">Offer Replacement</option>
+                            <option value="escalate_to_human">Escalate to Human</option>
+                            <option value="close_ticket">Close Ticket</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Payload (JSON format)</label>
+                        <textarea id="action-payload" rows="4" class="stylish-textarea">{"label": "damaged_item"}</textarea>
+                        <span class="help-text" id="payload-helper">Example: {"label": "damaged_item"}</span>
+                    </div>
+                    <button id="btn-step" class="btn warning mt-2">Submit Action</button>
+                    <div id="action-feedback" class="feedback-msg"></div>
+                </div>
+            </div>
+            
+            <!-- Result Panel (Shown when Done) -->
+            <div class="panel result-panel mt-4 hidden" id="result-panel">
+                 <div class="panel-header">
+                    <h2>Terminal Outcome</h2>
+                </div>
+                <div class="panel-body">
+                    <h3 class="final-score" id="ui-final-score">Score: 0.00</h3>
+                    <p id="ui-terminal-summary" class="summary-text"></p>
+                </div>
+            </div>
+
+        </main>
+        
+        <!-- Timeline Column -->
+        <aside class="timeline-column">
+            <h3>Action History</h3>
+            <div class="timeline" id="ui-timeline">
+                <p class="empty-state">No actions taken.</p>
+            </div>
+        </aside>
+
+    </div>
+    <script src="/static/app.js"></script>
+</body>
+</html>

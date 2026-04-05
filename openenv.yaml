@@ -1,0 +1,29 @@
+environment:
+  name: "OpenSupportEnv"
+  version: "1.0.0"
+  description: "A real-world customer support ticket triage and resolution benchmark"
+  authors:
+    - "ResolveFlow Team"
+  tags: ["customer-support", "triage", "operations", "llm-agent"]
+
+tasks:
+  - id: "task_001_easy"
+    description: "Damaged item refund (Low ambiguity)"
+    difficulty: "easy"
+  - id: "task_002_medium"
+    description: "Delayed delivery requiring policy check (Medium ambiguity)"
+    difficulty: "medium"
+  - id: "task_003_hard"
+    description: "High-value suspected fraud (High ambiguity / Critical escalation)"
+    difficulty: "hard"
+
+endpoints:
+  health: "/health"
+  reset: "/api/reset"
+  step: "/api/step"
+  state: "/api/state"
+
+runtime:
+  port_env: "PORT"
+  default_port: 7860
+  container_ready_log: "Uvicorn running on"
