@@ -1,6 +1,5 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 import uvicorn
 import traceback
@@ -12,13 +11,7 @@ from envs.tasks import ALL_TASKS
 app = FastAPI(title="ResolveFlow API", description="OpenSupportEnv backend")
 env = OpenSupportEnv()
 
-# Serve UI
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
-
-@app.get("/", response_class=HTMLResponse)
-async def serve_ui(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request, "tasks": ALL_TASKS})
+# Removed legacy mounts
 
 # API Routes
 @app.get("/health")
@@ -45,12 +38,13 @@ def step_env(action: Action):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/api/state")
-def get_state():
-    try:
-        state = env.state()
-        return state.model_dump()
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+async def get_state():
+    return env.current_state()
+
+import os
+# Mount React frontend statics 
+# Fallback to serving the HTML file so React Router works if applicable
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 if __name__ == "__main__":
     import os
