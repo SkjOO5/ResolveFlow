@@ -1,101 +1,91 @@
-# ResolveFlow / OpenSupportEnv
+# ResolveFlow: Customer Support Operations Benchmark
 
-A real-world customer support ticket triage and resolution benchmark for evaluating autonomous AI agents, built on the **OpenEnv** specification.
+**ResolveFlow** implements the `OpenSupportEnv` environment, a realistic, multi-step customer support operations benchmark built on the **OpenEnv** specification. 
 
-## Overview
+It evaluates autonomous agents strictly on information gathering, policy reasoning, safe communication, and correct operational resolutions (refunds, store credits, escalations, etc.).
 
-**ResolveFlow** implements the `OpenSupportEnv` environment, where an AI agent acts as a customer support representative. 
-It must accurately triage customer tickets, safely use internal API tools to gather context (order history, account details), classify the problem, execute the correct resolution (e.g., refund vs. escalation), and draft a policy-compliant response.
+## 📖 Motivation
 
-This environment evaluates agents on **complex multi-step reasoning, tool usage, policy alignment, and operational efficiency.**
+Modern LLMs perform exceptionally well on static classification tasks but often fail in real-world operations where business logic holds hidden constraints. 
+In ResolveFlow, the agent acts as a Tier-1 support agent dealing directly with customer inputs. 
+It must accurately triage the ticket, correctly use internal API tools to fetch the state of the account (lifetime value, fraud flags, SLA timers), evaluate eligibility according to restricted policies, draft a compliant response, and cleanly close the case.
 
-### Why This Environment Matters
-- **Real-World Utility**: It directly simulates a massive multi-billion dollar real-world challenge: automated Tier-1 support orchestration.
-- **Deterministic Evaluation**: Each task has a hidden mathematical rubric scoring classification, prioritization, resolution correctness, tool utilization, and response compliance in `[0.0, 1.0]`.
-- **Safe & Bounded Action Space**: Prevents "gaming" the benchmark through explicit Pydantic schema validation.
+**This is a critical benchmark because it tests:**
+- Strict policy adherence over "helpful" hallucinations.
+- Efficient tool usage without duplicated calls.
+- Safe escalation routing for constrained cases (like suspected fraud).
+- Exact step sequence matching against a deep, mathematical Rubric.
 
-## Environment Mechanics
+## ⚙️ Environment Mechanics
 
 ### Observation Space
-The agent receives a strict, typed JSON view containing:
-- `customer_message`: The natural language issue reported by the customer.
-- `metadata`: Initial visible context (e.g. `customer_id`).
-- `revealed_context`: Data retrieved during the episode through tools.
+A realistic, partitioned view mimicking a Zendesk/Intercom widget:
+- `customer_message`: Natural language inquiry to be parsed.
+- `metadata`: Initial provided knowledge (Customer ID, Order ID).
+- `revealed_context`: Keys dynamically filled as the agent queries tools (like `account`, `refund_history`, `order_status`).
 - `step_count` & `max_steps`.
-- `history_summary`: The trajectory of actions taken.
+- `history_summary`: The trajectory of recent actions taken.
+- The **hidden rubric**, score eligibility, and actual valid resolution paths are strictly hidden from the observation.
 
 ### Action Space
-A restricted action space using typed payloads:
-| Action | Purpose |
+Agents submit typed JSON payloads choosing from:
+| Action | Description |
 | ------ | ------- |
 | `classify_ticket` | Assign issue category |
-| `set_priority` | Set SLA urgency |
-| `request_account_details` | Retrieve internal customer DB |
-| `request_order_history` | Retrieve shipping DB |
-| `request_return_policy` | Retrieve policy rules |
-| `draft_response` | Write a natural language reply |
-| `issue_refund` | (Terminal) Trigger partial/full refund |
-| `escalate_to_human` | (Terminal) Route to Tier-2 support |
-| `close_ticket` | (Terminal) Complete the workflow |
+| `set_priority` | Evaluate urgency by SLA |
+| `request_account_details` | Inspect VIP/Churn risk variables |
+| `request_order_history` | Look up items, amounts |
+| `request_shipping_status` | Identify delivery times/zones |
+| `request_refund_history` | Calculate fraud risk logic |
+| `request_return_policy` | Pull instructions for decision bounds |
+| `request_billing_history` | Inspect source transaction validity |
+| `draft_response` | Output empathetic & compliant communication |
+| `issue_refund` | (Terminal) Distribute funds |
+| `offer_replacement` | (Terminal) Route physical reshipment |
+| `offer_store_credit` | (Terminal) Distribute partial courtesy credits |
+| `escalate_to_human` | (Terminal) Transfer to Tier-2 Fraud or Billing Ops |
+| `close_ticket` | (Terminal) Conclude an already resolved flow |
 
-### Dense Reward Design
-Agents receive dense mathematical shaping rewards on each step:
-- Positive rewards (+0.1) for strictly correct intermediate classifications.
-- Penalties (-0.05) for duplicate lookups or malformed action structures.
-- Large bonuses (+0.2) for executing the correct terminal protocol.
-- Terminal grade calculation (up to 1.0) applied at `close_ticket`.
+### Dynamic Grader & 1.0 Normalization
+The benchmark produces a `[0.0, 1.0]` score deterministically evaluating efficiency, tool accuracy, prioritization, safe policy resolution, and response quality. It heavily maps against SLA penalties, over-promising restrictions, and fraud handling.
 
-## Task Descriptions
+## 🗂️ Task Difficulty Tiers
 
-The benchmark ships with three deterministic tasks simulating real operational load:
-- **Task 1: Damaged Item (Easy)** - Straightforward refund processing. Low ambiguity. Expected to succeed perfectly on modern models.
-- **Task 2: Delayed Delivery (Medium)** - Mixed signals requiring specific policy lookups. Must evaluate whether cancellation or 15% courtesy refund is appropriate.
-- **Task 3: Suspected Fraud (Hard)** - High-value missing item report. The agent must synthesize fraud flags and correctly decline a refund, opting for human escalation.
+ResolveFlow ships with three deterministic task scenarios to evaluate scaling difficulty:
+1. **Easy (Damaged Item)**: Short path. Agent simply checks the order and issues a policy-aligned refund natively.
+2. **Medium (Delayed Delivery)**: Medium path. Relies on checking shipping SLAs and substituting an immediate cancellation request with a compliant 15% courtesy store credit instead.
+3. **Hard (Suspected Fraud)**: High-value watch missing. High churn risk, multiple prior refunds flag the account. The agent must successfully navigate policy rules to explicitly decline the direct refund and pass it to human escalation gracefully.
 
-## Setup and Validation
+---
 
-### 1. Local Setup
+## 🚀 Setup and Validation
+
+### 1. Local UI Deployment
+We provide a standalone FastAPI GUI mimicking a true operations dashboard (No React build needed):
 ```bash
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 python app.py
 ```
-Open `http://localhost:7860` for the interactive dashboard.
+View the dashboard at `http://localhost:8888`.
 
-### 2. Docker Setup
+### 2. Docker / Hugging Face Spaces
 ```bash
 docker build -t resolveflow .
 docker run -p 7860:7860 resolveflow
 ```
+*Note: The FastAPI instance automatically listens on `0.0.0.0:*` responding properly to the standard HF Space `/health` probes.*
 
-### 3. API Endpoints
-- `GET /health` : Service health.
-- `POST /api/reset` : Intitialize environment.
-- `POST /api/step` : Perform action.
-- `GET /api/state` : Fetch full state history.
-
-## Baseline Inference Evaluation
-
-Run the baseline evaluation using the OpenAI client:
+### 3. Baseline API Inference
+Validate current SOTA models via `inference.py` conforming strictly to the OpenEnv logs format (`[START]`, `[STEP]`, `[END]`).
 ```bash
 export OPENAI_API_KEY="sk-..."
 export MODEL_NAME="gpt-4-turbo"
 python inference.py
 ```
 
-### Example Logs Output
-```
-[START]
-...
-[STEP] {"task": "task_001_easy", "action": {"action_type": "classify_ticket", "payload": {"label": "damaged_item"}}, "reward": {"value": 0.09, "components": {"step_penalty": -0.01, "correct_classification": 0.1}}, "done": false}
-...
-[END]
-```
-
 ### Baseline Expected Scores
-- **GPT-4-Turbo**: Expected 0.85+ 
-- **Mock/Random**: ~0.0 - 0.20
-
-## Hugging Face Spaces Deployment
-The included `Dockerfile` and `app.py` configuration binds correctly to `0.0.0.0:7860`. Push the repository directly to a Hugging Face Space using the Docker runtime type to host the UI.
+- **GPT-4-Turbo**: 0.82 - 0.95
+- **GPT-3.5 / Models missing context capacity**: 0.45 - 0.60
+- **Random Heuristics**: ~0.05

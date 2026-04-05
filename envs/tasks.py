@@ -1,5 +1,5 @@
 from envs.models import TaskDefinition, Rubric
-from envs.datasets import ACCOUNTS_DB, ORDERS_DB, RETURN_POLICIES
+from envs.datasets import ACCOUNTS_DB, ORDERS_DB, REFUND_HISTORY_DB, BILLING_HISTORY_DB, RETURN_POLICIES
 
 EASY_TASK = TaskDefinition(
     task_id="task_001_easy",
@@ -13,15 +13,21 @@ EASY_TASK = TaskDefinition(
     hidden_rubric=Rubric(
         correct_classification="damaged_item",
         correct_priority="medium",
-        required_tool_calls=[], # Easy, might not strictly require tool calls, but optional
-        valid_terminal_actions=["issue_refund", "close_ticket"],
-        required_response_elements=["refund", "apology", "keep", "item"],
+        refund_eligible=True,
+        replacement_eligible=True,
+        store_credit_acceptable=True,
+        escalation_required=False,
+        required_tool_calls=[],
+        valid_terminal_actions=["issue_refund", "offer_replacement", "close_ticket"],
+        required_response_elements=["refund", "apology", "keep"],
         prohibited_response_elements=["return", "ship it back"]
     ),
     max_steps=10,
     internal_data_store={
         "account": ACCOUNTS_DB["CUST-1001"],
         "order": ORDERS_DB["ORD-1A"],
+        "refund_history": REFUND_HISTORY_DB["CUST-1001"],
+        "billing": BILLING_HISTORY_DB["CUST-1001"],
         "policy": RETURN_POLICIES["general"]
     }
 )
@@ -36,17 +42,23 @@ MEDIUM_TASK = TaskDefinition(
         "order_id": "ORD-2B"
     },
     hidden_rubric=Rubric(
-        correct_classification="shipping_delay",
+        correct_classification="delayed_shipment",
         correct_priority="medium",
+        refund_eligible=True, # Conditional (15%)
+        replacement_eligible=False,
+        store_credit_acceptable=True,
+        escalation_required=False,
         required_tool_calls=["request_shipping_status", "request_return_policy"],
-        valid_terminal_actions=["draft_response", "close_ticket", "issue_refund"],
-        required_response_elements=["delay", "apology", "15%"], # Expecting courtesy refund offer
+        valid_terminal_actions=["draft_response", "close_ticket", "issue_refund", "offer_store_credit"],
+        required_response_elements=["delay", "apology", "15%"],
         prohibited_response_elements=["full refund", "cancel"]
     ),
     max_steps=15,
     internal_data_store={
         "account": ACCOUNTS_DB["CUST-1002"],
         "order": ORDERS_DB["ORD-2B"],
+        "refund_history": REFUND_HISTORY_DB["CUST-1002"],
+        "billing": BILLING_HISTORY_DB["CUST-1002"],
         "policy": RETURN_POLICIES["delayed_shipping"]
     }
 )
@@ -63,15 +75,21 @@ HARD_TASK = TaskDefinition(
     hidden_rubric=Rubric(
         correct_classification="missing_item",
         correct_priority="high",
-        required_tool_calls=["request_account_details", "request_order_history", "request_return_policy"],
+        refund_eligible=False,
+        replacement_eligible=False,
+        store_credit_acceptable=False,
+        escalation_required=True,
+        required_tool_calls=["request_account_details", "request_refund_history", "request_return_policy"],
         valid_terminal_actions=["escalate_to_human"],
         required_response_elements=["escalate", "investigate", "team"],
-        prohibited_response_elements=["refund", "replacement"]
+        prohibited_response_elements=["refund", "replacement", "store credit"]
     ),
     max_steps=20,
     internal_data_store={
         "account": ACCOUNTS_DB["CUST-2099"],
         "order": ORDERS_DB["ORD-3C"],
+        "refund_history": REFUND_HISTORY_DB["CUST-2099"],
+        "billing": BILLING_HISTORY_DB["CUST-2099"],
         "policy": RETURN_POLICIES["fraud_protocol"]
     }
 )
@@ -83,7 +101,7 @@ ALL_TASKS = {
 }
 
 def get_task_by_id(task_id: str) -> TaskDefinition:
-    return ALL_TASKS[task_id]
+    return ALL_TASKS.get(task_id, EASY_TASK)
 
 def get_task_by_difficulty(diff: str) -> TaskDefinition:
     for t in ALL_TASKS.values():
