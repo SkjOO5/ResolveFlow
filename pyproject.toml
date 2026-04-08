@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "resolveflow"
+version = "1.0.0"
+description = "OpenSupportEnv — A realistic OpenEnv benchmark for evaluating autonomous agents on customer support operations"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "ResolveFlow Team" }
+]
+keywords = ["openenv", "benchmark", "rl", "llm", "customer-support", "agent-evaluation"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "fastapi==0.104.1",
+    "uvicorn==0.24.0",
+    "pydantic==2.4.2",
+    "jinja2==3.1.2",
+    "openai==1.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.3",
+    "httpx>=0.25.0",
+]
+
+[project.urls]
+"Homepage" = "https://huggingface.co/spaces/Electron005/ResolveFlow"
+"Repository" = "https://github.com/SkjOO5/ResolveFlow"
+
+[project.scripts]
+resolveflow-serve = "app:app"
+resolveflow-infer = "inference:run_baseline"
+
+[tool.setuptools.packages.find]
+include = ["envs*"]
+
+[tool.setuptools.package-data]
+"envs" = ["*.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
