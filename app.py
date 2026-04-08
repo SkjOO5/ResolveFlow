@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 import uvicorn
@@ -11,7 +11,22 @@ from envs.models import Action
 from envs.environment import OpenSupportEnv
 from envs.tasks import ALL_TASKS
 
-app = FastAPI(title="ResolveFlow API", description="OpenSupportEnv backend")
+# redirect_slashes=False prevents POST /reset/ → redirect to GET /reset
+app = FastAPI(
+    title="ResolveFlow API",
+    description="OpenSupportEnv — OpenEnv hackathon benchmark",
+    redirect_slashes=False
+)
+
+# CORS — allow all origins and methods so the validator can POST freely
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 env = OpenSupportEnv()
 
 
@@ -25,12 +40,13 @@ class ResetRequest(BaseModel):
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    """Health check endpoint."""
+    return {"status": "ok", "version": "1.0.0"}
 
 
-@app.post("/api/reset")
-def reset_env(request: ResetRequest = None):
-    """Reset the environment for a given task. Accepts JSON body: {task_id: str}"""
+@app.post("/reset")
+async def reset_env(request: Optional[ResetRequest] = None):
+    """Reset the environment. Accepts optional JSON body: {task_id: str}"""
     try:
         task_id = request.task_id if request and request.task_id else "task_001_easy"
         obs = env.reset(task_id)
@@ -39,8 +55,8 @@ def reset_env(request: ResetRequest = None):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.post("/api/step")
-def step_env(action: Action):
+@app.post("/step")
+async def step_env(action: Action):
     """Execute one action step. Accepts JSON body matching Action schema."""
     try:
         result = env.step(action)
@@ -52,14 +68,40 @@ def step_env(action: Action):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.get("/api/state")
-def get_state():
+@app.get("/state")
+async def get_state():
     """Return current full environment state."""
     return env.current_state().model_dump()
 
 
+@app.get("/tasks")
+async def list_tasks():
+    """List all available tasks."""
+    return [
+        {"id": t.task_id, "difficulty": t.difficulty, "max_steps": t.max_steps, "description": t.description}
+        for t in ALL_TASKS
+    ]
+
+
+@app.get("/")
+async def root():
+    """Root endpoint with environment info."""
+    return {
+        "name": "ResolveFlow",
+        "description": "OpenSupportEnv — OpenEnv benchmark for customer support agents",
+        "spec": "openenv-v1",
+        "endpoints": {
+            "reset": "POST /reset",
+            "step": "POST /step",
+            "state": "GET /state",
+            "tasks": "GET /tasks",
+            "health": "GET /health"
+        }
+    }
+
+
 # ── Frontend static serving (must come AFTER all API routes) ──────────────────
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+app.mount("/ui", StaticFiles(directory="static", html=True), name="static")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))

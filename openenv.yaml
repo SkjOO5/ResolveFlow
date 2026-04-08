@@ -42,9 +42,10 @@ grader:
     - efficiency
 
 endpoints:
-  reset: "/api/reset"
-  step: "/api/step"
-  state: "/api/state"
+  reset: "/reset"
+  step: "/step"
+  state: "/state"
+  tasks: "/tasks"
   health: "/health"
 
 schemas:
