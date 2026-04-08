@@ -19,7 +19,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend files
 COPY envs/ envs/
-COPY app.py inference.py openenv.yaml README.md ./
+COPY server/ server/
+COPY app.py inference.py openenv.yaml README.md pyproject.toml ./
 
 # Create static directory and copy built UI from Stage 1 into it
 RUN mkdir -p static
