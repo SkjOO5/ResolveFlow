@@ -36,7 +36,7 @@ class ResetRequest(BaseModel):
     task_id: Optional[str] = "task_001_easy"
 
 
-# ── API Routes ────────────────────────────────────────────────────────────────
+# ── API Routes (must be registered BEFORE the static mount) ──────────────────
 
 @app.get("/health")
 def health_check():
@@ -83,25 +83,8 @@ async def list_tasks():
     ]
 
 
-@app.get("/")
-async def root():
-    """Root endpoint with environment info."""
-    return {
-        "name": "ResolveFlow",
-        "description": "OpenSupportEnv — OpenEnv benchmark for customer support agents",
-        "spec": "openenv-v1",
-        "endpoints": {
-            "reset": "POST /reset",
-            "step": "POST /step",
-            "state": "GET /state",
-            "tasks": "GET /tasks",
-            "health": "GET /health"
-        }
-    }
-
-
-# ── Frontend static serving (must come AFTER all API routes) ──────────────────
-app.mount("/ui", StaticFiles(directory="static", html=True), name="static")
+# ── React frontend (mounted AFTER all API routes so it only catches unknown paths) ──
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))
