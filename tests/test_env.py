@@ -145,15 +145,15 @@ def test_health_endpoint():
     assert result["status"] == "ok"
 
 def test_reset_endpoint():
-    from app import reset_env
-    result = reset_env("task_001_easy")
+    from app import reset_env, ResetRequest
+    result = reset_env(ResetRequest(task_id="task_001_easy"))
     assert result["task_id"] == "task_001_easy"
     assert result["step_count"] == 0
     assert result["done"] is False
 
 def test_step_endpoint():
-    from app import reset_env, step_env
-    reset_env("task_001_easy")
+    from app import reset_env, step_env, ResetRequest
+    reset_env(ResetRequest(task_id="task_001_easy"))
     data = step_env(Action(action_type="request_account_details", payload={}))
     assert "observation" in data
     assert "reward" in data
@@ -166,8 +166,8 @@ def test_invalid_action_raises():
         Action(action_type="nonexistent_action", payload={})
 
 def test_full_episode_via_api():
-    from app import reset_env, step_env
-    reset_env("task_001_easy")
+    from app import reset_env, step_env, ResetRequest
+    reset_env(ResetRequest(task_id="task_001_easy"))
     step_env(Action(action_type="classify_ticket", payload={"label": "damaged_item"}))
     step_env(Action(action_type="set_priority", payload={"priority": "medium"}))
     step_env(Action(action_type="draft_response", payload={"message": "refund apology keep item"}))
