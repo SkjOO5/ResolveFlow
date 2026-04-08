@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
 
 [project]
 name = "resolveflow"
@@ -42,15 +42,16 @@ dev = [
 "Repository" = "https://github.com/SkjOO5/ResolveFlow"
 
 [project.scripts]
-resolveflow-serve = "server.app:app"
+serve = "server.app:main"
+resolveflow-serve = "server.app:main"
 resolveflow-infer = "inference:run_baseline"
 
 [tool.setuptools.packages.find]
+where = ["."]
 include = ["envs*", "server*"]
 
 [tool.setuptools.package-data]
-"envs" = ["*.py"]
-"server" = ["*.py"]
+"*" = ["*.yaml", "*.yml", "*.json", "*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

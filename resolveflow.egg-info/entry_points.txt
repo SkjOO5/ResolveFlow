@@ -1,0 +1,3 @@
+[console_scripts]
+resolveflow-infer = inference:run_baseline
+resolveflow-serve = app:app

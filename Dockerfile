@@ -2,31 +2,41 @@
 FROM node:20-slim AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-# Since they use bun locally but package.json has scripts, standard NPM will work just fine for the build phase
 RUN npm install
 COPY frontend/ .
 RUN npm run build
 
-# Stage 2: Serve via FastAPI 
+# Stage 2: Serve via FastAPI
 FROM python:3.10-slim
 WORKDIR /app
 
-# Ensure tzdata doesn't interrupt apt
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PORT=7860
+ENV HOST=0.0.0.0
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Copy backend files
+# Copy ALL project files (includes server/, envs/, app.py, pyproject.toml, etc.)
 COPY envs/ envs/
 COPY server/ server/
 COPY app.py inference.py openenv.yaml README.md pyproject.toml ./
 
-# Create static directory and copy built UI from Stage 1 into it
+# Install project in editable mode so [project.scripts] entry points register
+RUN pip install --no-cache-dir -e . --no-deps
+
+# Copy built React frontend from Stage 1
 RUN mkdir -p static
 COPY --from=frontend-builder /app/frontend/dist /app/static/
 
-ENV PORT=7860
 EXPOSE 7860
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/health')"
+
+# Use the server entry point defined in pyproject.toml [project.scripts]
+CMD ["python", "server/app.py"]
