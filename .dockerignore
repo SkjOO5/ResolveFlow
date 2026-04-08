@@ -1,0 +1,23 @@
+# Ignore these from Docker build context — keeps image lean
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+node_modules/
+frontend/node_modules/
+frontend/.next/
+.python-version
+run_out.log
+pip_out.txt
+*.log
