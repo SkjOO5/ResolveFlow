@@ -42,7 +42,7 @@ dev = [
 "Repository" = "https://github.com/SkjOO5/ResolveFlow"
 
 [project.scripts]
-serve = "server.app:main"
+server = "server.app:main"
 resolveflow-serve = "server.app:main"
 resolveflow-infer = "inference:run_baseline"
 

@@ -41,7 +41,7 @@ class ResetRequest(BaseModel):
 @app.get("/health")
 def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "version": "1.0.0"}
+    return {"status": "healthy", "version": "1.0.0"}
 
 
 @app.post("/reset")

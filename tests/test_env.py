@@ -142,7 +142,7 @@ def test_determinism():
 def test_health_endpoint():
     from app import health_check
     result = health_check()
-    assert result["status"] == "ok"
+    assert result["status"] == "healthy"
 
 def test_reset_endpoint():
     from app import reset_env, ResetRequest
