@@ -6,9 +6,20 @@ from openai import OpenAI
 from envs.environment import OpenSupportEnv
 from envs.models import Action
 
+# ── Environment variables (matching hackathon sample exactly) ─────────────────
+API_BASE_URL = os.getenv("API_BASE_URL", "https://api-inference.huggingface.co/v1/")
+MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3.3-70B-Instruct")
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+# Optional – if you use from_docker_image():
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
+
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+
 def json_extract(response_text: str) -> Dict[str, Any]:
+    """Robustly extract a JSON object from an LLM response string."""
     try:
-        # Simple extraction for robust payload fetching
         if "```json" in response_text:
             cleaned = response_text.split("```json")[1].split("```")[0].strip()
         elif "```" in response_text:
@@ -18,6 +29,7 @@ def json_extract(response_text: str) -> Dict[str, Any]:
         return json.loads(cleaned)
     except Exception:
         return None
+
 
 def build_system_prompt() -> str:
     return """You are an autonomous customer support operations agent.
@@ -33,13 +45,15 @@ Example:
 }
 """
 
+
 def query_agent(client: OpenAI, model_name: str, obs_dict: Dict[str, Any]) -> Tuple[str, Dict]:
+    """Query the LLM agent for the next action given the current observation."""
     messages = [
         {"role": "system", "content": build_system_prompt()},
         {"role": "user", "content": f"Current Observation:\n{json.dumps(obs_dict, indent=2)}\n\nWhat is your next action?"}
     ]
-    
-    # Retry loop for format safety
+
+    # Retry loop for transient model errors
     for attempt in range(3):
         try:
             response = client.chat.completions.create(
@@ -52,95 +66,20 @@ def query_agent(client: OpenAI, model_name: str, obs_dict: Dict[str, Any]) -> Tu
             if action_data and "action_type" in action_data:
                 return action_data["action_type"], action_data.get("payload", {})
         except Exception as e:
-            if attempt == 2: raise
+            if attempt == 2:
+                raise
             time.sleep(1)
-            
-    return "close_ticket", {} # Fallback
 
-class InferenceConfig:
-    def __init__(self):
-        self.api_key = os.getenv("OPENAI_API_KEY")
-        self.base_url = os.getenv("API_BASE_URL")
-        self.model_name = os.getenv("MODEL_NAME")
-        self.hf_token = os.getenv("HF_TOKEN")
-        self.validate()
+    return "close_ticket", {}  # Safe fallback
 
-    def validate(self):
-        if not self.api_key:
-            raise RuntimeError("Missing required environment variable: OPENAI_API_KEY")
-        if not self.base_url:
-            raise RuntimeError("Missing required environment variable: API_BASE_URL")
-        if not self.model_name:
-            raise RuntimeError("Missing required environment variable: MODEL_NAME")
-        if not self.hf_token:
-            raise RuntimeError("Missing required environment variable: HF_TOKEN")
 
-def load_inference_config() -> InferenceConfig:
-    return InferenceConfig()
+# ── Mock agent for smoke-testing without a live LLM ──────────────────────────
 
-def run_baseline():
-    config = load_inference_config()
-    
-    print("[START]")
-    print(f"Running OpenSupportEnv baseline evaluation using {config.model_name}.")
-    print(f"API Base URL: {config.base_url}")
-    
-    client = OpenAI(api_key=config.api_key, base_url=config.base_url)
-    
-    env = OpenSupportEnv()
-    tasks = ["task_001_easy", "task_002_medium", "task_003_hard"]
-    print(f"Task count: {len(tasks)}")
-    
-    total_score = 0.0
-    task_scores = {}
-    
-    for task_id in tasks:
-        obs = env.reset(task_id)
-        done = False
-        
-        while not done:
-            obs_dict = obs.model_dump()
-            
-            # --- AGENT POLICY ---
-            action_type, payload = query_agent(client, config.model_name, obs_dict)
-            # --------------------
-            
-            try:
-                action = Action(action_type=action_type, payload=payload)
-                step_res = env.step(action)
-                obs_dict = step_res.observation.model_dump()
-                done = step_res.done
-                
-                log_data = {
-                    "task": task_id,
-                    "action": action.model_dump(),
-                    "reward": step_res.reward.model_dump(),
-                    "done": step_res.done
-                }
-                print(f"[STEP] {json.dumps(log_data)}")
-                
-                if done:
-                    score = step_res.info.get("final_score", 0.0)
-                    task_scores[task_id] = score
-                    total_score += score
-                    
-            except Exception as e:
-                print(f"Agent generated invalid action: {e}")
-                done = True
-
-    print("\n[END]")
-    print("=== SUMMARY ===")
-    for t_id, sc in task_scores.items():
-        print(f"{t_id}: {sc:.2f}")
-    
-    avg_score = total_score / len(tasks)
-    print(f"Aggregate Score: {avg_score:.2f}")
-
-def get_mock_action(obs):
+def get_mock_action(obs: Dict[str, Any]) -> Tuple[str, Dict]:
+    """Deterministic mock policy — used for local smoke tests only."""
     step = obs["step_count"]
     diff = obs["difficulty"]
-    
-    # Updated mock to map to new action set and rubrics
+
     if diff == "easy":
         if step == 0: return "classify_ticket", {"label": "damaged_item"}
         if step == 1: return "set_priority", {"priority": "medium"}
@@ -163,6 +102,71 @@ def get_mock_action(obs):
         if step == 6: return "escalate_to_human", {"team": "fraud investigate"}
 
     return "close_ticket", {}
+
+
+# ── Main baseline runner ──────────────────────────────────────────────────────
+
+def run_baseline():
+    """Run the baseline agent against all tasks and emit structured logs."""
+    if not HF_TOKEN:
+        raise RuntimeError("Missing required environment variable: HF_TOKEN")
+
+    # All LLM calls use the OpenAI client configured via module-level variables
+    client = OpenAI(api_key=HF_TOKEN, base_url=API_BASE_URL)
+
+    env = OpenSupportEnv()
+    tasks = ["task_001_easy", "task_002_medium", "task_003_hard"]
+
+    print("[START]")
+    print(f"Running OpenSupportEnv baseline evaluation using {MODEL_NAME}.")
+    print(f"API Base URL: {API_BASE_URL}")
+    print(f"Task count: {len(tasks)}")
+
+    total_score = 0.0
+    task_scores = {}
+
+    for task_id in tasks:
+        obs = env.reset(task_id)
+        done = False
+
+        while not done:
+            obs_dict = obs.model_dump()
+
+            # ── AGENT POLICY ──────────────────────────────────────────────────
+            action_type, payload = query_agent(client, MODEL_NAME, obs_dict)
+            # ─────────────────────────────────────────────────────────────────
+
+            try:
+                action = Action(action_type=action_type, payload=payload)
+                step_res = env.step(action)
+                obs = step_res.observation
+                done = step_res.done
+
+                log_data = {
+                    "task": task_id,
+                    "action": action.model_dump(),
+                    "reward": step_res.reward.model_dump(),
+                    "done": step_res.done
+                }
+                print(f"[STEP] {json.dumps(log_data)}")
+
+                if done:
+                    score = step_res.info.get("final_score", 0.0)
+                    task_scores[task_id] = score
+                    total_score += score
+
+            except Exception as e:
+                print(f"Agent generated invalid action: {e}")
+                done = True
+
+    print("\n[END]")
+    print("=== SUMMARY ===")
+    for t_id, sc in task_scores.items():
+        print(f"{t_id}: {sc:.2f}")
+
+    avg_score = total_score / len(tasks)
+    print(f"Aggregate Score: {avg_score:.2f}")
+
 
 if __name__ == "__main__":
     run_baseline()
