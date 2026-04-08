@@ -1,5 +1,5 @@
 $ErrorActionPreference = "Stop"
-cd c:\Users\lenovo\OneDrive\Desktop\S\ResolveFlow
+cd c:\Users\lenovo\OneDrive\Desktop\ResolveFlow\ResolveFlow
 
 # We must use Python 3.12 because Python 3.14 alpha lacks wheels for pydantic and fastapi
 if (Test-Path "venv") {
@@ -14,4 +14,5 @@ Write-Host "Installing dependencies..."
 .\venv\Scripts\python.exe -m pip install -r requirements.txt
 
 Write-Host "Starting server on port 7860..."
+$env:PORT=7860
 .\venv\Scripts\python.exe app.py

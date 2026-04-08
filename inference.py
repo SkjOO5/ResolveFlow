@@ -57,20 +57,39 @@ def query_agent(client: OpenAI, model_name: str, obs_dict: Dict[str, Any]) -> Tu
             
     return "close_ticket", {} # Fallback
 
+class InferenceConfig:
+    def __init__(self):
+        self.api_key = os.getenv("OPENAI_API_KEY")
+        self.base_url = os.getenv("API_BASE_URL")
+        self.model_name = os.getenv("MODEL_NAME")
+        self.hf_token = os.getenv("HF_TOKEN")
+        self.validate()
+
+    def validate(self):
+        if not self.api_key:
+            raise RuntimeError("Missing required environment variable: OPENAI_API_KEY")
+        if not self.base_url:
+            raise RuntimeError("Missing required environment variable: API_BASE_URL")
+        if not self.model_name:
+            raise RuntimeError("Missing required environment variable: MODEL_NAME")
+        if not self.hf_token:
+            raise RuntimeError("Missing required environment variable: HF_TOKEN")
+
+def load_inference_config() -> InferenceConfig:
+    return InferenceConfig()
+
 def run_baseline():
-    api_key = os.getenv("OPENAI_API_KEY", "sk-dummy")
-    base_url = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
-    model_name = os.getenv("MODEL_NAME", "gpt-4-turbo-preview")
+    config = load_inference_config()
     
     print("[START]")
-    print(f"Running OpenSupportEnv baseline evaluation using {model_name}.")
+    print(f"Running OpenSupportEnv baseline evaluation using {config.model_name}.")
+    print(f"API Base URL: {config.base_url}")
     
-    # We mock the client if dummy to prevent real crashes if no key
-    is_mock = "sk-dummy" in api_key
-    client = OpenAI(api_key=api_key, base_url=base_url) if not is_mock else None
+    client = OpenAI(api_key=config.api_key, base_url=config.base_url)
     
     env = OpenSupportEnv()
     tasks = ["task_001_easy", "task_002_medium", "task_003_hard"]
+    print(f"Task count: {len(tasks)}")
     
     total_score = 0.0
     task_scores = {}
@@ -83,10 +102,7 @@ def run_baseline():
             obs_dict = obs.model_dump()
             
             # --- AGENT POLICY ---
-            if is_mock:
-                action_type, payload = get_mock_action(obs_dict)
-            else:
-                action_type, payload = query_agent(client, model_name, obs_dict)
+            action_type, payload = query_agent(client, config.model_name, obs_dict)
             # --------------------
             
             try:

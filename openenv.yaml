@@ -13,11 +13,33 @@ environment:
 
 tasks:
   - id: "task_001_easy"
-    description: "Damaged item refund tracking straightforward policy application."
+    difficulty: "easy"
+    max_steps: 10
+    description: "Damaged item refund — straightforward policy-aligned resolution requiring classification, optional tool lookups, and a terminal refund or replacement action."
   - id: "task_002_medium"
-    description: "Delayed shipment requiring SLA evaluation and store credit issuance."
+    difficulty: "medium"
+    max_steps: 15
+    description: "Delayed shipment — agent must inspect shipping SLA data and return policy before issuing a bounded courtesy credit. Full refunds are prohibited."
   - id: "task_003_hard"
-    description: "High-value suspected fraud requiring multi-tool lookup and escalation bounds."
+    difficulty: "hard"
+    max_steps: 20
+    description: "High-value suspected fraud — agent must retrieve account, refund history, billing anomalies, and policy before concluding the case requires human escalation. No refund or replacement is permitted."
+
+reward:
+  range: [0.0, 1.0]
+  type: "dense"
+  description: "Per-step partial rewards for useful tool calls, classification accuracy, and response quality. Terminal grader produces a normalized final score."
+
+grader:
+  type: "deterministic"
+  dimensions:
+    - classification
+    - priority
+    - tool_usage
+    - policy_compliance
+    - resolution
+    - response_quality
+    - efficiency
 
 endpoints:
   reset: "/api/reset"

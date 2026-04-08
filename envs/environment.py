@@ -1,5 +1,5 @@
 import json
-from envs.models import Observation, Action, StepResult, State, ActionType
+from envs.models import Observation, Action, StepResult, State, ActionType, ActionHistoryEntry
 from envs.tasks import get_task_by_id
 from envs.rewards import RewardShaper
 from envs.graders import Grader
@@ -61,16 +61,23 @@ class OpenSupportEnv:
             if key in self._task.internal_data_store:
                 self.state.revealed_context[key] = self._task.internal_data_store[key]
 
-        self.state.action_history.append(action)
+        self.state.action_history.append(ActionHistoryEntry(
+            step=self.state.step_count,
+            action=action,
+            reward=reward.value,
+            reward_components=reward.components,
+            result_summary=reward.reason
+        ))
 
         terminal_actions = ["issue_refund", "offer_replacement", "offer_store_credit", "escalate_to_human", "close_ticket"]
         
         if action.action_type in terminal_actions or self.state.step_count >= self.state.max_steps:
             self.state.done = True
-            final_score, breakdown, summary = Grader.grade(self.state, self._task)
+            final_score, breakdown, summary, audit = Grader.grade(self.state, self._task)
             self.state.final_score = final_score
             self.state.score_breakdown = breakdown
             self.state.terminal_summary = summary
+            self.state.episode_audit = audit
             
             # terminal bonus to align reward surface
             reward.value += (final_score * 0.5) 
@@ -85,9 +92,9 @@ class OpenSupportEnv:
 
     def _make_observation(self) -> Observation:
         history_summary = []
-        for a in self.state.action_history[-3:]: # Only visible past 3 actions to force context mgmt
-            payload_str = json.dumps(a.payload) 
-            history_summary.append(f"{a.action_type}: {payload_str}")
+        for entry in self.state.action_history[-3:]: # Only visible past 3 actions to force context mgmt
+            payload_str = json.dumps(entry.action.payload) 
+            history_summary.append(f"{entry.action.action_type}: {payload_str}")
             
         return Observation(
             task_id=self.state.task_id,

@@ -27,7 +27,7 @@ class RewardShaper:
         val += RewardShaper.PENALTY_EXCESS_STEP
         components["step_penalty"] = RewardShaper.PENALTY_EXCESS_STEP
 
-        past_action_types = [a.action_type for a in state.action_history]
+        past_action_types = [entry.action.action_type for entry in state.action_history]
         is_duplicate = False
         
         # Tools tracking
@@ -112,7 +112,7 @@ class RewardShaper:
 
         elif action.action_type == "close_ticket":
             # Check for premature closing
-            valid_term_taken = any(a.action_type in task.hidden_rubric.valid_terminal_actions for a in state.action_history)
+            valid_term_taken = any(entry.action.action_type in task.hidden_rubric.valid_terminal_actions for entry in state.action_history)
             if "close_ticket" not in task.hidden_rubric.valid_terminal_actions and not valid_term_taken:
                 val += RewardShaper.PENALTY_PREMATURE_CLOSE
                 components["premature_close"] = RewardShaper.PENALTY_PREMATURE_CLOSE

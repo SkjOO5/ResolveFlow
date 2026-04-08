@@ -26,6 +26,13 @@ class Action(BaseModel):
     action_type: ActionType = Field(..., description="The type of action the agent wants to perform.")
     payload: Dict[str, Any] = Field(default_factory=dict, description="Structured payload for the action.")
 
+class ActionHistoryEntry(BaseModel):
+    step: int
+    action: Action
+    reward: float
+    reward_components: Dict[str, float] = Field(default_factory=dict)
+    result_summary: str
+
 # -----------------
 # Environment Core Definitions
 # -----------------
@@ -91,12 +98,13 @@ class State(BaseModel):
     done: bool
     cumulative_reward: float
     last_reward: Reward | None = None
-    action_history: List[Action] = Field(default_factory=list)
+    action_history: List[ActionHistoryEntry] = Field(default_factory=list)
     revealed_context: Dict[str, Any] = Field(default_factory=dict)
     available_actions: List[str] = Field(default_factory=list)
     final_score: float | None = None
     score_breakdown: Dict[str, float] | None = None
     terminal_summary: str | None = None
+    episode_audit: List[str] | None = None
     
     # Hidden tracking variables for reward & policy bounds
     classification_set: str | None = None
