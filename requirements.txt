@@ -2,5 +2,7 @@ fastapi==0.104.1
 uvicorn==0.24.0
 pydantic==2.4.2
 jinja2==3.1.2
-openai==1.3.0
+# openai>=2.7.2 is required by openenv-core and is also compatible with httpx>=0.28.0
+# (openai 1.3.0 + httpx>=0.28.0 caused TypeError: httpx.Client() constructor changed)
+openai>=2.7.2
 pytest==7.4.3
