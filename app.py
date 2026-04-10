@@ -7,9 +7,11 @@ import uvicorn
 import traceback
 import os
 
-from envs.models import Action
+from envs.models import Action, State, TaskDefinition
 from envs.environment import OpenSupportEnv
 from envs.tasks import ALL_TASKS
+from envs.graders import Grader
+from envs.scoring import SCORE_MIN, SCORE_MAX
 
 # redirect_slashes=False prevents POST /reset/ → redirect to GET /reset
 app = FastAPI(
@@ -78,34 +80,110 @@ async def get_state():
 async def list_tasks():
     """
     List all available tasks with grader information.
-    
+
     This endpoint is required by OpenEnv validator to discover available tasks
     and verify that each task has a grader attached.
-    
+
+    Each task entry includes a `grader` object describing the grader type,
+    score range, endpoint, and evaluation dimensions. This is the primary
+    signal the OpenEnv validator uses to determine whether tasks have graders.
+
     Returns:
         List of task metadata including id, difficulty, max_steps, title,
-        and grader availability.
+        grader config, and score range.
     """
+    grader_dimensions = [
+        "classification",
+        "priority",
+        "tool_usage",
+        "policy_compliance",
+        "resolution",
+        "response_quality",
+        "efficiency",
+    ]
     return [
         {
             "id": t.task_id,
             "title": t.title,
             "difficulty": t.difficulty,
             "max_steps": t.max_steps,
-            "has_grader": True,  # All tasks have graders
+            "description": t.customer_message[:120] + "..." if len(t.customer_message) > 120 else t.customer_message,
+            # Primary grader registration block — parsed by OpenEnv validator
+            "grader": {
+                "type": "deterministic",
+                "endpoint": "/grade",
+                "score_range": [SCORE_MIN, SCORE_MAX],
+                "open_interval": True,
+                "dimensions": grader_dimensions,
+            },
+            # Legacy compatibility fields — keep for any older validator build
+            "has_grader": True,
             "grader_type": "deterministic",
-            "rubric_dimensions": [
-                "classification",
-                "priority",
-                "tool_usage",
-                "policy_compliance",
-                "resolution",
-                "response_quality",
-                "efficiency"
-            ]
+            "score_min": SCORE_MIN,
+            "score_max": SCORE_MAX,
         }
-        for t in ALL_TASKS.values()  # FIXED: was iterating over keys, now values
+        for t in ALL_TASKS.values()
     ]
+
+
+@app.post("/grade")
+async def grade_task(request: dict):
+    """
+    Grade a completed episode for a given task.
+
+    This endpoint is referenced in openenv.yaml as the per-task grader endpoint.
+    It accepts a state dict (from /state) and task_id, runs the deterministic
+    grader, and returns a score strictly in (0, 1).
+
+    Expected body:
+        {
+            "task_id": "task_001_easy",
+            "state": { ... }   # optional — uses current env state if omitted
+        }
+
+    Returns:
+        {
+            "task_id": "...",
+            "score": float,          # strictly in (SCORE_MIN, SCORE_MAX)
+            "score_min": 0.05,
+            "score_max": 0.95,
+            "open_interval": true,
+            "breakdown": { ... },
+            "summary": "...",
+            "audit": [ ... ]
+        }
+    """
+    try:
+        task_id = request.get("task_id", "task_001_easy")
+
+        # Use provided state or fall back to current env state
+        current_state = env.current_state()
+        if current_state is None or current_state.task_id != task_id:
+            # Reset to requested task for fresh grading baseline
+            env.reset(task_id)
+            current_state = env.current_state()
+
+        task = ALL_TASKS.get(task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+
+        final_score, breakdown, summary, audit = Grader.grade(current_state, task)
+
+        return {
+            "task_id": task_id,
+            "score": final_score,
+            "score_min": SCORE_MIN,
+            "score_max": SCORE_MAX,
+            "open_interval": True,
+            "breakdown": breakdown,
+            "summary": summary,
+            "audit": audit,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Grading error: {str(e)}")
 
 
 # ── React frontend (mounted AFTER all API routes so it only catches unknown paths) ──

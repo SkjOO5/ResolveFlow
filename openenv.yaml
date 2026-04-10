@@ -23,19 +23,35 @@ tasks:
     difficulty: "easy"
     max_steps: 10
     description: "Damaged item refund — straightforward policy-aligned resolution requiring classification, optional tool lookups, and a terminal refund or replacement action."
+    grader:
+      type: "deterministic"
+      endpoint: "/grade"
+      score_range: [0.05, 0.95]
+      dimensions: ["classification", "priority", "tool_usage", "policy_compliance", "resolution", "response_quality", "efficiency"]
   - id: "task_002_medium"
     difficulty: "medium"
     max_steps: 15
     description: "Delayed shipment — agent must inspect shipping SLA data and return policy before issuing a bounded courtesy credit. Full refunds are prohibited."
+    grader:
+      type: "deterministic"
+      endpoint: "/grade"
+      score_range: [0.05, 0.95]
+      dimensions: ["classification", "priority", "tool_usage", "policy_compliance", "resolution", "response_quality", "efficiency"]
   - id: "task_003_hard"
     difficulty: "hard"
     max_steps: 20
     description: "High-value suspected fraud — agent must retrieve account, refund history, billing anomalies, and policy before concluding the case requires human escalation. No refund or replacement is permitted."
+    grader:
+      type: "deterministic"
+      endpoint: "/grade"
+      score_range: [0.05, 0.95]
+      dimensions: ["classification", "priority", "tool_usage", "policy_compliance", "resolution", "response_quality", "efficiency"]
 
 reward:
-  range: [0.0, 1.0]
+  range: [0.05, 0.95]
   type: "dense"
-  description: "Per-step partial rewards for useful tool calls, classification accuracy, and response quality. Terminal grader produces a normalized final score."
+  open_interval: true
+  description: "Per-step partial rewards for useful tool calls, classification accuracy, and response quality. Terminal grader produces a normalized final score strictly in the open interval (0.05, 0.95)."
 
 grader:
   type: "deterministic"
