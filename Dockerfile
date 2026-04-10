@@ -1,13 +1,9 @@
-# Stage 1: Build the frontend (Vite/React)
-FROM node:20-slim AS frontend-builder
-WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm install
-COPY frontend/ .
-RUN npm run build
+# Single-stage Python FastAPI server
+# The frontend is pre-built and committed to static/
+# No npm/node build step required.
 
-# Stage 2: Python FastAPI server
 FROM python:3.10-slim
+
 WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1
@@ -21,15 +17,14 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy ALL project files in one step (.dockerignore excludes venv, node_modules etc.)
+# Copy all project files (.dockerignore excludes venv, node_modules, __pycache__, etc.)
 COPY . .
 
 # Install project as editable package so [project.scripts] entry points register
 RUN pip install --no-cache-dir -e . --no-deps
 
-# Place the built React frontend into the static directory
-RUN mkdir -p static
-COPY --from=frontend-builder /app/frontend/dist /app/static/
+# Verify the static directory exists (pre-built frontend)
+RUN test -f static/index.html || (echo "ERROR: static/index.html not found" && exit 1)
 
 EXPOSE 7860
 
