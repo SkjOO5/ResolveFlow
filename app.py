@@ -76,10 +76,35 @@ async def get_state():
 
 @app.get("/tasks")
 async def list_tasks():
-    """List all available tasks."""
+    """
+    List all available tasks with grader information.
+    
+    This endpoint is required by OpenEnv validator to discover available tasks
+    and verify that each task has a grader attached.
+    
+    Returns:
+        List of task metadata including id, difficulty, max_steps, title,
+        and grader availability.
+    """
     return [
-        {"id": t.task_id, "difficulty": t.difficulty, "max_steps": t.max_steps, "description": t.description}
-        for t in ALL_TASKS
+        {
+            "id": t.task_id,
+            "title": t.title,
+            "difficulty": t.difficulty,
+            "max_steps": t.max_steps,
+            "has_grader": True,  # All tasks have graders
+            "grader_type": "deterministic",
+            "rubric_dimensions": [
+                "classification",
+                "priority",
+                "tool_usage",
+                "policy_compliance",
+                "resolution",
+                "response_quality",
+                "efficiency"
+            ]
+        }
+        for t in ALL_TASKS.values()  # FIXED: was iterating over keys, now values
     ]
 
 

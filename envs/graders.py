@@ -1,4 +1,5 @@
 from envs.models import State, TaskDefinition
+from envs.scoring import strict_score, safe_divide
 
 class Grader:
     @staticmethod
@@ -17,38 +18,42 @@ class Grader:
         
         # Efficiency (5%)
         if state.step_count <= (task.max_steps * 0.6):
-            breakdown["efficiency"] = 1.0
+            breakdown["efficiency"] = strict_score(1.0)
             audit.append(f"Highly efficient: Resolved in {state.step_count} steps.")
         elif state.step_count <= task.max_steps:
             efficiency_ratio = 1.0 - ((state.step_count - (task.max_steps * 0.6)) / task.max_steps)
-            breakdown["efficiency"] = max(0.0, efficiency_ratio)
+            breakdown["efficiency"] = strict_score(max(0.0, efficiency_ratio))
             audit.append(f"Acceptable efficiency: Took {state.step_count} steps.")
         else:
+            breakdown["efficiency"] = strict_score(0.1)  # Penalized but not exact 0
             audit.append(f"Inefficient: Exceeded max intended steps.")
             
         # Classification (20%)
         if state.classification_set == task.hidden_rubric.correct_classification:
-            breakdown["classification"] = 1.0
+            breakdown["classification"] = strict_score(1.0)
             audit.append(f"Correctly classified issue as {task.hidden_rubric.correct_classification}.")
         else:
+            breakdown["classification"] = strict_score(0.1)  # Penalized but not exact 0
             audit.append(f"Incorrect classification. Expected: {task.hidden_rubric.correct_classification}. Got: {state.classification_set}.")
             
         # Priority (10%)
         if state.priority_set == task.hidden_rubric.correct_priority:
-            breakdown["priority"] = 1.0
+            breakdown["priority"] = strict_score(1.0)
             audit.append(f"Correctly assessed priority as {task.hidden_rubric.correct_priority}.")
         else:
+            breakdown["priority"] = strict_score(0.15)  # Penalized but not exact 0
             audit.append(f"Incorrect priority. Expected: {task.hidden_rubric.correct_priority}.")
             
         # Tool usage relevance (20%)
         past_actions = [entry.action.action_type for entry in state.action_history]
         missing_tools = [t for t in task.hidden_rubric.required_tool_calls if t not in past_actions]
         if not missing_tools:
-            breakdown["tool_usage"] = 1.0
+            breakdown["tool_usage"] = strict_score(1.0)
             audit.append("Successfully utilized all required internal tools.")
         else:
             pct_missing = len(missing_tools) / max(1, len(task.hidden_rubric.required_tool_calls))
-            breakdown["tool_usage"] = max(0.0, 1.0 - pct_missing)
+            tool_score = max(0.1, 1.0 - pct_missing)
+            breakdown["tool_usage"] = strict_score(tool_score)
             audit.append(f"Missed critical tool lookups: {', '.join(missing_tools)}. Context retrieval insufficient.")
             
         # Policy Compliance (20%) - Checking if agent broke refund rules
@@ -64,19 +69,22 @@ class Grader:
             audit.append("Fatal error: Failed to escalate a mandatory human-review case.")
             
         if not has_policy_breach:
-            breakdown["policy_compliance"] = 1.0
+            breakdown["policy_compliance"] = strict_score(1.0)
         else:
-            breakdown["policy_compliance"] = 0.0
+            breakdown["policy_compliance"] = strict_score(0.05)  # Penalized but not exact 0
             
         # Resolution Correctness (20%)
         terminals_taken = [a for a in past_actions if a in ["issue_refund", "offer_replacement", "offer_store_credit", "escalate_to_human", "close_ticket"]]
         # Must have taken at least one valid terminal action
         is_valid_term = any(t in task.hidden_rubric.valid_terminal_actions for t in terminals_taken)
         if is_valid_term and not has_policy_breach:
-            breakdown["resolution"] = 1.0
+            breakdown["resolution"] = strict_score(1.0)
             audit.append(f"Resolution path was correct and compliant.")
         elif not is_valid_term:
+            breakdown["resolution"] = strict_score(0.2)  # Penalized but not exact 0
             audit.append(f"Suboptimal resolution. Expected one of: {', '.join(task.hidden_rubric.valid_terminal_actions)}.")
+        else:
+            breakdown["resolution"] = strict_score(0.1)  # Policy violation affects resolution
 
         # Response Quality (5%)
         if state.response_drafted:
@@ -84,18 +92,19 @@ class Grader:
             hit_all = all(req in draft for req in task.hidden_rubric.required_response_elements)
             hit_prohibited = any(proh in draft for proh in task.hidden_rubric.prohibited_response_elements)
             if hit_all and not hit_prohibited:
-                breakdown["response_quality"] = 1.0
+                breakdown["response_quality"] = strict_score(1.0)
                 audit.append("Customer response met all semantic criteria.")
             elif not hit_prohibited:
-                breakdown["response_quality"] = 0.5 
+                breakdown["response_quality"] = strict_score(0.5) 
                 audit.append("Customer response missed key required topics.")
             else:
-                breakdown["response_quality"] = 0.0 # Prohibited word present
+                breakdown["response_quality"] = strict_score(0.05)  # Prohibited word present, penalized but not exact 0
                 audit.append("Customer response contained strictly prohibited commitments.")
         elif not task.hidden_rubric.required_response_elements:
-            breakdown["response_quality"] = 1.0 # not strictly required
+            breakdown["response_quality"] = strict_score(1.0)  # not strictly required
             audit.append("Customer communication was adequate.")
         else:
+            breakdown["response_quality"] = strict_score(0.1)  # No response drafted despite being implicitly required
             audit.append("No response drafted despite being implicitly required.")
             
         # Normalized weighted sum:
@@ -109,7 +118,8 @@ class Grader:
             0.05 * breakdown["efficiency"]
         )
         
-        final_score = max(0.0, min(1.0, final_score))
+        # Apply strict scoring to the final result
+        final_score = strict_score(final_score)
         
         summary = (
             f"Classification: {breakdown['classification']*100:.0f}% | "
