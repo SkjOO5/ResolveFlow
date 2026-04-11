@@ -9,7 +9,8 @@ import sys
 import json
 import time
 import traceback
-import requests
+import urllib.request
+import urllib.error
 
 # ── CONFIG ───────────────────────────────────────────────────
 API_BASE_URL    = os.environ.get("API_BASE_URL",    "https://api.openai.com/v1").strip()
@@ -31,29 +32,31 @@ def _post(path, body=None, retries=3):
     url = ENV_URL + path
     for i in range(retries):
         try:
-            r = requests.post(
+            req = urllib.request.Request(
                 url,
-                json=body or {},
-                headers={"Content-Type": "application/json"},
-                timeout=60,
+                data=json.dumps(body or {}).encode("utf-8"),
+                headers={"Content-Type": "application/json"}
             )
-            r.raise_for_status()
-            return r.json()
+            with urllib.request.urlopen(req, timeout=60) as response:
+                return json.loads(response.read().decode("utf-8"))
         except Exception as exc:
             if i == retries - 1:
-                raise
+                # Return empty dict / safe fallback so it doesn't crash the program
+                _log("HTTP_POST_ERROR", path=path, error=str(exc))
+                return {}
             time.sleep(2 ** i)
 
 def _get(path, retries=3):
     url = ENV_URL + path
     for i in range(retries):
         try:
-            r = requests.get(url, timeout=30)
-            r.raise_for_status()
-            return r.json()
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=30) as response:
+                return json.loads(response.read().decode("utf-8"))
         except Exception as exc:
             if i == retries - 1:
-                raise
+                _log("HTTP_GET_ERROR", path=path, error=str(exc))
+                return {}
             time.sleep(2 ** i)
 
 # ── SAFE SCORE ────────────────────────────────────────────────
